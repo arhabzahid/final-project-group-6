@@ -1,6 +1,20 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
+import { ref, onMounted } from "vue";
+import axios from "axios";
 import HelloWorld from './components/HelloWorld.vue'
+
+const message = ref("Loading...");
+
+onMounted(async () => {
+  try {
+    const res = await axios.get("http://127.0.0.1:8000/health/");
+    message.value = res.data.status;
+  } catch (err) {
+    message.value = "Backend not reachable (check Django + CORS)";
+    console.error(err);
+  }
+});
 </script>
 
 <template>
@@ -8,7 +22,8 @@ import HelloWorld from './components/HelloWorld.vue'
     <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
 
     <div class="wrapper">
-      <HelloWorld msg="You did it!" />
+      <!-- Simple proof frontend ↔ backend works -->
+      <h1>{{ message }}</h1>
 
       <nav>
         <RouterLink to="/">Home</RouterLink>
@@ -77,7 +92,6 @@ nav a:first-of-type {
     text-align: left;
     margin-left: -1rem;
     font-size: 1rem;
-
     padding: 1rem 0;
     margin-top: 1rem;
   }

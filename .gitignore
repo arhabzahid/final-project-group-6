@@ -1,15 +1,14 @@
 # python
+venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
 # virtual environments
-venv/
 .venv/
 
 # django
-db.sqlite3
 
 # node
 node_modules/
