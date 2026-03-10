@@ -45,3 +45,22 @@ class Provider(models.Model):
     def __str__(self):
         return self.user.get_full_name()
 
+class Availability(models.Model):
+    availability_id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete = models.CASCADE)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    status = models.CharField(max_length = 20, blank = True)
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.start_time} to {self.end_time}"
+    
+class Appointment(models.Model):
+    appointment_id = models.AutoField(primary_key=True)
+    availability_id = models.ForeignKey(Availability, on_delete = models.CASCADE)
+    patient = models.ForeignKey(Patient, on_delete = models.CASCADE)
+    provider = models.ForeignKey(Provider, on_delete = models.CASCADE)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    status = models.CharField(max_length = 20, blank = True)
+    def __str__(self):
+        return f"Appointment {self.appointment_id} - {self.patient} with {self.provider} from {self.start_time} to {self.end_time}"
