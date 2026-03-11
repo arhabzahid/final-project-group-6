@@ -47,7 +47,8 @@ class Provider(models.Model):
 
 class Availability(models.Model):
     availability_id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete = models.CASCADE)
+    #changed user to provider
+    provider = models.ForeignKey(Provider, on_delete = models.CASCADE)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
     status = models.CharField(max_length = 20, blank = True)
@@ -56,6 +57,7 @@ class Availability(models.Model):
     
 class Appointment(models.Model):
     appointment_id = models.AutoField(primary_key=True)
+    #linking appt to availability, pt, and provider
     availability_id = models.ForeignKey(Availability, on_delete = models.CASCADE)
     patient = models.ForeignKey(Patient, on_delete = models.CASCADE)
     provider = models.ForeignKey(Provider, on_delete = models.CASCADE)
