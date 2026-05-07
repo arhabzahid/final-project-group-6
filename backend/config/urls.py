@@ -17,6 +17,15 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
+urlpatterns = []
+from api.views import (health, home, patients, providers, appointments,delete_appointment)
+
 urlpatterns = [
+    path("", home),
+    path("health/", health),
+    path("patients/", patients),
+    path("providers/", providers),
+    path("appointments/", appointments),
+    path("appointments/delete/<int:id>/", delete_appointment),
     path('admin/', admin.site.urls),
 ]
