@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path
 
 urlpatterns = []
-from api.views import (health, home, patients, providers, appointments,delete_appointment)
+from api.views import (health, home, patients, providers, appointments, availability, delete_appointment, update_appointment)
 
 urlpatterns = [
     path("", home),
@@ -26,6 +26,8 @@ urlpatterns = [
     path("patients/", patients),
     path("providers/", providers),
     path("appointments/", appointments),
+    path("availability/", availability),
     path("appointments/delete/<int:id>/", delete_appointment),
+    path("appointments/update/<int:id>/", update_appointment),
     path('admin/', admin.site.urls),
 ]

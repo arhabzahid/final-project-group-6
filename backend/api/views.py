@@ -1,7 +1,7 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Patient, Provider, Appointment
-from .serializers import PatientSerializer, ProviderSerializer, AppointmentSerializer
+from .models import Patient, Provider, Appointment, Availability 
+from .serializers import PatientSerializer, ProviderSerializer, AppointmentSerializer, AvailabilitySerializer
 
 
 
@@ -66,3 +66,29 @@ def delete_appointment(request, id):
     except Appointment.DoesNotExist:
         return Response({"error": "Appointment not found"})
 
+@api_view(['GET', 'POST'])
+def availability(request):
+    if request.method == 'GET':
+        data = Availability.objects.all()
+        serializer = AvailabilitySerializer(data, many=True)
+        return Response(serializer.data)
+
+    serializer = AvailabilitySerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors)
+
+@api_view(['PUT'])
+def update_appointment(request, id):
+    try:
+        appt = Appointment.objects.get(appointment_id=id)
+    except Appointment.DoesNotExist:
+        return Response({"error": "Appointment not found"})
+
+    serializer = AppointmentSerializer(appt, data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+
+    return Response(serializer.errors)
