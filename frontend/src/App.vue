@@ -1,4 +1,5 @@
 <script setup lang="ts">
+
 import { ref, onMounted } from 'vue'
 
 const appointments = ref<any[]>([])
@@ -388,3 +389,10 @@ button:hover {
   opacity: 0.9;
 }
 </style>
+import { RouterView } from 'vue-router'
+</script>
+
+<template>
+  <RouterView />
+</template>
+
