@@ -15,22 +15,17 @@ async function handleLogin() {
   loading.value = true
 
   try {
-    const res = await axios.post('http://127.0.0.1:8000/api/login/', {
+    const res = await axios.post('http://127.0.0.1:8000/login/', {
       username: username.value,
       password: password.value,
     })
 
-    const { token, role } = res.data
-    localStorage.setItem('token', token)
-    localStorage.setItem('role', role)
-
-    if (role === 'provider') {
-      router.push('/dashboard/provider')
-    } else {
-      router.push('/dashboard/patient')
+    if (res.data.success) {
+      localStorage.setItem('user', JSON.stringify(res.data))
+      router.push('/dashboard')
     }
   } catch (err: any) {
-    if (err.response?.status === 400) {
+    if (err.response?.status === 401) {
       error.value = 'Invalid username or password.'
     } else {
       error.value = 'Unable to connect to server. Please try again.'

@@ -18,10 +18,11 @@ from django.contrib import admin
 from django.urls import path
 
 urlpatterns = []
-from api.views import (health, home, patients, providers, appointments, availability, delete_appointment, update_appointment)
+from api.views import (health, home, patients, providers, appointments, availability, delete_appointment, update_appointment, login)
 
 urlpatterns = [
     path("", home),
+    path("login/", login),
     path("health/", health),
     path("patients/", patients),
     path("providers/", providers),
