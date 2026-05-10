@@ -5,21 +5,14 @@ from .models import Patient, Provider, Appointment, Availability
 from .serializers import PatientSerializer, ProviderSerializer, AppointmentSerializer, AvailabilitySerializer
 
 @api_view(["POST"])
-def login(request):
+def login_view(request):
     username = request.data.get("username", "").strip()
     password = request.data.get("password", "").strip()
-
-    print("REQUEST:", request.data)
-    print("USERNAME:", username)
-    print("PASSWORD:", password)
 
     user = authenticate(
         username=username,
         password=password
     )
-
-    print("USER:", user)
-
     if user is not None:
         return Response({
             "success": True,
