@@ -1,12 +1,14 @@
 <script setup lang="ts">
 
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
 const appointments = ref<any[]>([])
 const patients = ref<any[]>([])
 const providers = ref<any[]>([])
 const availability = ref<any[]>([])
 const currentView = ref('appointments')
+const router = useRouter()
 
 const newAppointment = ref({
   availability_id: 1,
@@ -38,30 +40,43 @@ async function fetchAvailability() {
 }
 
 async function addAppointment() {
-  await fetch('http://127.0.0.1:8000/appointments/', {
+  const selectedPatient = newAppointment.value.patient
+  const selectedProvider = newAppointment.value.provider
+
+  const response = await fetch('http://127.0.0.1:8000/appointments/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-  availability: Number(newAppointment.value.availability_id),
-  patient: Number(newAppointment.value.patient),
-  provider: Number(newAppointment.value.provider),
-  start_time: newAppointment.value.start_time,
-  end_time: newAppointment.value.end_time,
-  status: "scheduled"
-})
+      availability: Number(newAppointment.value.availability_id),
+      patient: Number(newAppointment.value.patient),
+      provider: Number(newAppointment.value.provider),
+      start_time: newAppointment.value.start_time,
+      end_time: newAppointment.value.end_time,
+      status: 'scheduled'
+    })
   })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    alert(data.error || JSON.stringify(data))
+    return
+  }
 
   await fetchAppointments()
 
   newAppointment.value = {
     availability_id: 1,
-    patient: 1,
-    provider: 1,
+    patient: selectedPatient,
+    provider: selectedProvider,
     start_time: '',
     end_time: '',
     status: 'scheduled'
   }
+
+  alert('Appointment created successfully!')
 }
+
 
 async function deleteAppointment(id: number) {
   await fetch(`http://127.0.0.1:8000/appointments/delete/${id}/`, {
@@ -82,6 +97,11 @@ onMounted(() => {
   fetchProviders()
   fetchAvailability()
 })
+function logout() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('role')
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -110,9 +130,14 @@ onMounted(() => {
           <p>Manage hospital patients, providers, and appointments.</p>
         </div>
 
+        <div class="topbar-actions">
         <button class="refresh" @click="fetchAppointments">
-          Refresh Data
+        Refresh Data
         </button>
+        <button class="logout" @click="logout">
+        Logout
+        </button>
+        </div>
       </header>
 
       <section class="stats">
@@ -345,6 +370,19 @@ onMounted(() => {
   border-radius: 10px;
   cursor: pointer;
 }
+.topbar-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.logout {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+}
 
 .stats {
   display: grid;
@@ -387,6 +425,11 @@ onMounted(() => {
 }
 
 input {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+}
+select {
   padding: 12px;
   border: 1px solid #d1d5db;
   border-radius: 10px;

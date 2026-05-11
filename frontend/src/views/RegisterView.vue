@@ -39,11 +39,8 @@ async function handleRegister() {
     localStorage.setItem('token', token)
     localStorage.setItem('role', userRole)
 
-    if (userRole === 'provider') {
-      router.push('/dashboard/provider')
-    } else {
-      router.push('/dashboard/patient')
-    }
+   router.push('/dashboard')
+   
   } catch (err: any) {
     if (err.response?.data?.error) {
       error.value = err.response.data.error
