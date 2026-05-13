@@ -10,6 +10,8 @@ const availability = ref<any[]>([])
 const currentView = ref('appointments')
 const router = useRouter()
 const editingAppointmentId = ref<number | null>(null)
+const user = JSON.parse(localStorage.getItem('user') || '{}')
+const welcomeName = user.full_name || user.username || 'User'
 
 const newAppointment = ref({
   availability_id: 1,
@@ -97,6 +99,90 @@ async function deleteAppointment(id: number) {
 
   await fetchAppointments()
 }
+async function deletePatient(id: number) {
+  await fetch(`http://127.0.0.1:8000/patients/delete/${id}/`, {
+    method: 'DELETE'
+  })
+
+  await fetchPatients()
+}
+
+async function deleteProvider(id: number) {
+  await fetch(`http://127.0.0.1:8000/providers/delete/${id}/`, {
+    method: 'DELETE'
+  })
+
+  await fetchProviders()
+}
+function editPatient(patient: any) {
+  editingPatientId.value = patient.id
+
+  patientForm.value = {
+    first_name: patient.first_name || '',
+    last_name: patient.last_name || '',
+    patient_phone_number: patient.patient_phone_number || '',
+    insurance_provider: patient.insurance_provider || '',
+    medications: patient.medications || ''
+  }
+
+  currentView.value = 'patients'
+}
+
+async function updatePatient() {
+  const response = await fetch(
+    `http://127.0.0.1:8000/patients/update/${editingPatientId.value}/`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patientForm.value)
+    }
+  )
+
+  if (!response.ok) {
+    alert('Patient update failed.')
+    return
+  }
+
+  await fetchPatients()
+  editingPatientId.value = null
+
+  alert('Patient updated successfully!')
+}
+
+function editProvider(provider: any) {
+  editingProviderId.value = provider.id
+
+  providerForm.value = {
+    first_name: provider.first_name || '',
+    last_name: provider.last_name || '',
+    specialty: provider.specialty || '',
+    department: provider.department || '',
+    provider_phone_number: provider.provider_phone_number || ''
+  }
+
+  currentView.value = 'providers'
+}
+
+async function updateProvider() {
+  const response = await fetch(
+    `http://127.0.0.1:8000/providers/update/${editingProviderId.value}/`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(providerForm.value)
+    }
+  )
+
+  if (!response.ok) {
+    alert('Provider update failed.')
+    return
+  }
+
+  await fetchProviders()
+  editingProviderId.value = null
+
+  alert('Provider updated successfully!')
+}
 function editAppointment(appointment: any) {
   editingAppointmentId.value = appointment.appointment_id
 
@@ -108,7 +194,28 @@ function editAppointment(appointment: any) {
     end_time: appointment.end_time,
     status: appointment.status
   }
+
+  appointmentDate.value = appointment.start_time.split('T')[0]
+  appointmentTime.value = appointment.start_time.split('T')[1].substring(0, 5)
 }
+const editingPatientId = ref<number | null>(null)
+const editingProviderId = ref<number | null>(null)
+
+const patientForm = ref({
+  first_name: '',
+  last_name: '',
+  patient_phone_number: '',
+  insurance_provider: '',
+  medications: ''
+})
+
+const providerForm = ref({
+  first_name: '',
+  last_name: '',
+  specialty: '',
+  department: '',
+  provider_phone_number: ''
+})
 const appointmentDate = ref('')
 const appointmentTime = ref('')
 
@@ -207,7 +314,8 @@ onMounted(() => {
   fetchAvailability()
 })
 function logout() {
-  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  localStorage.removeItem('user_id')
   localStorage.removeItem('role')
   router.push('/login')
 }
@@ -236,6 +344,7 @@ function logout() {
       <header class="topbar">
         <div>
           <h1>Dashboard</h1>
+          <p>Welcome, {{ welcomeName }}</p>
           <p>Manage hospital patients, providers, and appointments.</p>
         </div>
 
@@ -267,7 +376,7 @@ function logout() {
       </section>
 
       <section class="panel">
-        <h2>Add Appointment</h2>
+        <h2>{{ editingAppointmentId ? 'Update Appointment' : 'Add Appointment' }}</h2>
 
         <div class="form-grid">
           <select v-model="newAppointment.patient">
@@ -276,7 +385,7 @@ function logout() {
               :key="patient.id"
               :value="patient.id"
             >
-              Patient {{ patient.id }}
+              Patient {{ patient.id }} - {{ patient.first_name }} {{ patient.last_name}}
             </option>
           </select>
           <select v-model="newAppointment.provider">
@@ -285,7 +394,7 @@ function logout() {
               :key="provider.id"
               :value="provider.id"
             >
-              Provider {{ provider.id }}
+              Provider {{ provider.id }} - {{ provider.first_name }} {{ provider.last_name  }}
             </option>
           </select>
           <input
@@ -380,23 +489,46 @@ function logout() {
 
       <section class="panel" v-if="currentView === 'patients'">
         <h2>Patients</h2>
+        <div v-if="editingPatientId" class="form-grid">
+        <input v-model="patientForm.first_name" placeholder="First Name" />
+        <input v-model="patientForm.last_name" placeholder="Last Name" />
+        <input v-model="patientForm.patient_phone_number" placeholder="Phone" />
+        <input v-model="patientForm.insurance_provider" placeholder="Insurance" />
+        <input v-model="patientForm.medications" placeholder="Medication" />
+        <button class="primary" @click="updatePatient">
+        Save Patient Update
+        </button>
+        </div>
 
         <table>
           <thead>
             <tr>
               <th>ID</th>
+              <th>Name</th>
               <th>Phone</th>
               <th>Insurance</th>
               <th>Medication</th>
+              <th>Action</th>
             </tr>
           </thead>
 
           <tbody>
             <tr v-for="patient in patients" :key="patient.id">
               <td>{{ patient.id }}</td>
+              <td>{{ patient.first_name }} {{ patient.last_name }}</td>
               <td>{{ patient.patient_phone_number }}</td>
               <td>{{ patient.insurance_provider }}</td>
               <td>{{ patient.medications }}</td>
+              <td>
+              <div class="action-buttons">
+              <button class="update" @click="editPatient(patient)">
+              Update
+              </button>
+              <button class="delete" @click="deletePatient(patient.id)">
+              Delete
+              </button>
+              </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -404,23 +536,46 @@ function logout() {
 
       <section class="panel" v-if="currentView === 'providers'">
         <h2>Providers</h2>
+        <div v-if="editingProviderId" class="form-grid">
+        <input v-model="providerForm.first_name" placeholder="First Name" />
+        <input v-model="providerForm.last_name" placeholder="Last Name" />
+        <input v-model="providerForm.specialty" placeholder="Specialty" />
+        <input v-model="providerForm.department" placeholder="Department" />
+        <input v-model="providerForm.provider_phone_number" placeholder="Phone" />
+        <button class="primary" @click="updateProvider">
+        Save Provider Update
+        </button>
+        </div>
 
         <table>
           <thead>
             <tr>
               <th>ID</th>
+              <th>Name</th>
               <th>Specialty</th>
               <th>Department</th>
               <th>Phone</th>
-            </tr>
+              <th>Action</th>
+              </tr>
           </thead>
 
           <tbody>
             <tr v-for="provider in providers" :key="provider.id">
               <td>{{ provider.id }}</td>
+              <td>{{ provider.first_name }} {{ provider.last_name }}</td>
               <td>{{ provider.specialty }}</td>
               <td>{{ provider.department }}</td>
               <td>{{ provider.provider_phone_number }}</td>
+              <td>
+              <div class="action-buttons">
+              <button class="update" @click="editProvider(provider)">
+              Update
+              </button>
+              <button class="delete" @click="deleteProvider(provider.id)">
+              Delete
+              </button>
+              </div>
+              </td>
             </tr>
           </tbody>
         </table>

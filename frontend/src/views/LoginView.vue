@@ -22,7 +22,16 @@ async function handleLogin() {
 
     if (res.data.success) {
       localStorage.setItem('user', JSON.stringify(res.data))
-      router.push('/dashboard')
+      localStorage.setItem('role', res.data.role)
+  localStorage.setItem('user_id', res.data.user_id)
+
+  if (res.data.role === 'admin') {
+    router.push('/dashboard/admin')
+  } else if (res.data.role === 'provider') {
+    router.push('/dashboard/provider')
+  } else {
+    router.push('/dashboard/patient')
+  }
     }
   } catch (err: any) {
     if (err.response?.status === 401) {

@@ -27,13 +27,28 @@ const router = createRouter({
       name: 'dashboard',
       component: () => import('../views/DashboardView.vue'),
     },
+{
+      path: '/dashboard/admin',
+      name: 'admin-dashboard',
+      component: () => import('../views/AdminDashboardView.vue'),
+    },
+    {
+      path: '/dashboard/patient',
+      name: 'patient-dashboard',
+      component: () => import('../views/PatientDashboardView.vue'),
+    },
+    {
+      path: '/dashboard/provider',
+      name: 'provider-dashboard',
+      component: () => import('../views/ProviderDashboardView.vue'),
+    },
   ],
 })
 
 router.beforeEach((to, from, next) => {
   const user = localStorage.getItem('user')
 
-  if (to.path === '/dashboard' && !user) {
+  if (to.path.startsWith('/dashboard') && !user)  {
     next('/login')
   } else {
     next()

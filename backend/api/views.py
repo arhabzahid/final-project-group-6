@@ -15,10 +15,23 @@ def login_view(request):
         password=password
     )
     if user is not None:
+
+        role = "admin"
+
+        if Patient.objects.filter(user=user).exists():
+            role = "patient"
+
+        elif Provider.objects.filter(user=user).exists():
+            role = "provider"
+
         return Response({
             "success": True,
             "user_id": user.id,
-            "username": user.username
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "full_name": user.get_full_name(),
+            "role": role
         })
 
     return Response({
@@ -188,3 +201,124 @@ def register_view(request):
         "username": user.username,
         "role": role
     })
+@api_view(['GET'])
+def patient_appointments(request, user_id):
+    try:
+        patient = Patient.objects.get(user_id=user_id)
+    except Patient.DoesNotExist:
+        return Response({"error": "Patient not found"}, status=404)
+
+    data = Appointment.objects.filter(patient=patient)
+    serializer = AppointmentSerializer(data, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def provider_appointments(request, user_id):
+    try:
+        provider = Provider.objects.get(user_id=user_id)
+    except Provider.DoesNotExist:
+        return Response({"error": "Provider not found"}, status=404)
+
+    data = Appointment.objects.filter(provider=provider)
+    serializer = AppointmentSerializer(data, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['DELETE'])
+def delete_patient(request, id):
+    try:
+        patient = Patient.objects.get(id=id)
+        patient.user.delete()
+        return Response({"message": "Patient deleted"})
+    except Patient.DoesNotExist:
+        return Response({"error": "Patient not found"}, status=404)
+
+
+@api_view(['DELETE'])
+def delete_provider(request, id):
+    try:
+        provider = Provider.objects.get(id=id)
+        provider.user.delete()
+        return Response({"message": "Provider deleted"})
+    except Provider.DoesNotExist:
+        return Response({"error": "Provider not found"}, status=404)
+@api_view(['POST'])
+def provider_create_appointment(request, user_id):
+    try:
+        provider = Provider.objects.get(user_id=user_id)
+    except Provider.DoesNotExist:
+        return Response({"error": "Provider not found"}, status=404)
+
+    data = request.data.copy()
+    data["provider"] = provider.id
+
+    serializer = AppointmentSerializer(data=data)
+
+    if serializer.is_valid():
+        patient = serializer.validated_data["patient"]
+        start_time = serializer.validated_data["start_time"]
+        end_time = serializer.validated_data["end_time"]
+
+        provider_conflict = Appointment.objects.filter(
+            provider=provider,
+            start_time__lt=end_time,
+            end_time__gt=start_time
+        ).exists()
+
+        if provider_conflict:
+            return Response({"error": "You are already booked during this time."}, status=400)
+
+        patient_conflict = Appointment.objects.filter(
+            patient=patient,
+            start_time__lt=end_time,
+            end_time__gt=start_time
+        ).exists()
+
+        if patient_conflict:
+            return Response({"error": "This patient already has an appointment during this time."}, status=400)
+
+        serializer.save()
+        return Response(serializer.data)
+
+    return Response(serializer.errors, status=400)
+@api_view(['PUT'])
+def update_patient(request, id):
+    try:
+        patient = Patient.objects.get(id=id)
+    except Patient.DoesNotExist:
+        return Response({"error": "Patient not found"}, status=404)
+
+    user = patient.user
+    user.first_name = request.data.get("first_name", user.first_name)
+    user.last_name = request.data.get("last_name", user.last_name)
+    user.save()
+
+    patient.patient_phone_number = request.data.get("patient_phone_number", patient.patient_phone_number)
+    patient.insurance_provider = request.data.get("insurance_provider", patient.insurance_provider)
+    patient.medications = request.data.get("medications", patient.medications)
+    patient.save()
+
+    serializer = PatientSerializer(patient)
+    return Response(serializer.data)
+
+
+@api_view(['PUT'])
+def update_provider(request, id):
+    try:
+        provider = Provider.objects.get(id=id)
+    except Provider.DoesNotExist:
+        return Response({"error": "Provider not found"}, status=404)
+
+    user = provider.user
+    user.first_name = request.data.get("first_name", user.first_name)
+    user.last_name = request.data.get("last_name", user.last_name)
+    user.save()
+
+    provider.specialty = request.data.get("specialty", provider.specialty)
+    provider.department = request.data.get("department", provider.department)
+    provider.provider_phone_number = request.data.get("provider_phone_number", provider.provider_phone_number)
+    provider.save()
+
+    serializer = ProviderSerializer(provider)
+    return Response(serializer.data)
