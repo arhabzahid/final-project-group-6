@@ -47,12 +47,29 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const user = localStorage.getItem('user')
+ const role = localStorage.getItem('role')
 
-  if (to.path.startsWith('/dashboard') && !user)  {
+  if (to.path.startsWith('/dashboard') && !user) {
     next('/login')
-  } else {
-    next()
+    return
   }
+
+  if (to.path === '/dashboard/admin' && role !== 'admin') {
+    next('/login')
+    return
+  }
+
+  if (to.path === '/dashboard/provider' && role !== 'provider') {
+    next('/login')
+    return
+  }
+
+  if (to.path === '/dashboard/patient' && role !== 'patient') {
+    next('/login')
+    return
+  }
+
+  next()
 })
 
 export default router

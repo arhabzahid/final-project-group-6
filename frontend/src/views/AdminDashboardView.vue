@@ -12,6 +12,11 @@ const router = useRouter()
 const editingAppointmentId = ref<number | null>(null)
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const welcomeName = user.full_name || user.username || 'User'
+const darkMode = ref(false)
+
+function toggleDarkMode() {
+  darkMode.value = !darkMode.value
+}
 
 const newAppointment = ref({
   availability_id: 1,
@@ -53,6 +58,15 @@ async function addAppointment() {
   alert('Appointments cannot be scheduled on Sunday.')
   return
   }
+  if (isPastDate(appointmentDate.value)) {
+  alert('Appointments cannot be scheduled in the past.')
+  return
+  }
+  if (isPastDateTime(appointmentDate.value, appointmentTime.value)) {
+  alert('Appointments cannot be scheduled in the past.')
+  return
+  }
+  
   newAppointment.value.start_time = buildDateTime(appointmentDate.value, appointmentTime.value)
   newAppointment.value.end_time = buildEndTime(appointmentDate.value, appointmentTime.value)
 
@@ -250,6 +264,21 @@ function isSunday(date: string) {
   const selectedDate = new Date(`${date}T00:00:00Z`)
   return selectedDate.getUTCDay() === 0
 }
+function isPastDate(date: string) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const selectedDate = new Date(`${date}T00:00:00`)
+  selectedDate.setHours(0, 0, 0, 0)
+
+  return selectedDate < today
+}
+function isPastDateTime(date: string, time: string) {
+  const selectedDateTime = new Date(`${date}T${time}:00`)
+  const now = new Date()
+
+  return selectedDateTime < now
+}
 async function updateAppointment() {
   if (!appointmentDate.value || !appointmentTime.value) {
   alert('Please select a date and time.')
@@ -257,6 +286,14 @@ async function updateAppointment() {
   }
   if (isSunday(appointmentDate.value)) {
   alert('Appointments cannot be scheduled on Sunday.')
+  return
+  }
+  if (isPastDate(appointmentDate.value)) {
+  alert('Appointments cannot be scheduled in the past.')
+  return
+  }
+  if (isPastDateTime(appointmentDate.value, appointmentTime.value)) {
+  alert('Appointments cannot be scheduled in the past.')
   return
   }
   newAppointment.value.start_time = buildDateTime(appointmentDate.value, appointmentTime.value)
@@ -322,7 +359,7 @@ function logout() {
 </script>
 
 <template>
-  <div class="page">
+  <div :class="['page', { dark: darkMode }]">
     <aside class="sidebar">
       <h2>MedCare</h2>
       <p>Hospital Appointment System</p>
@@ -354,6 +391,9 @@ function logout() {
         </button>
         <button class="logout" @click="logout">
         Logout
+        </button>
+        <button class="dark-toggle" @click="toggleDarkMode">
+        {{ darkMode ? 'Light Mode' : 'Dark Mode' }}
         </button>
         </div>
       </header>
@@ -418,20 +458,6 @@ function logout() {
           </select>
         </div>
 
-        <div class="slots">
-            <button
-              v-for="slot in availability.filter(
-                slot =>
-                  slot.provider === Number(newAppointment.provider) &&
-                  slot.status === 'available'
-              )"
-              :key="slot.availability_id"
-              @click="selectSlot(slot)"
-            >
-              {{ slot.start_time }}
-            </button>
-        </div>
-
         <button
         class="primary"
         @click="editingAppointmentId ? updateAppointment() : addAppointment()"
@@ -459,8 +485,8 @@ function logout() {
           <tbody>
             <tr v-for="appointment in appointments" :key="appointment.appointment_id">
               <td>{{ appointment.appointment_id }}</td>
-              <td>{{ appointment.patient }}</td>
-              <td>{{ appointment.provider }}</td>
+              <td>{{ appointment.patient }} - {{ appointment.patient_name }}</td>
+              <td>{{ appointment.provider }} - {{ appointment.provider_name }}</td>
               <td>
                 <span class="status">{{ appointment.status }}</span>
               </td>
@@ -796,5 +822,51 @@ button:hover {
   border-radius: 8px;
   cursor: pointer;
 }
+.dark {
+  background: #111827;
+  color: #f9fafb;
+}
 
+.dark .main {
+  background: #111827;
+}
+
+.dark .panel,
+.dark .stat-card {
+  background: #1f2937;
+  color: #f9fafb;
+}
+
+.dark .topbar p,
+.dark .stat-card span {
+  color: #d1d5db;
+}
+
+.dark th {
+  background: #374151;
+  color: #f9fafb;
+}
+
+.dark td {
+  border-bottom: 1px solid #374151;
+}
+
+.dark input,
+.dark select {
+  background: #111827;
+  color: #f9fafb;
+  border-color: #4b5563;
+}
+
+.dark-toggle {
+  background: #111827;
+  color: white;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.dark .stat-card h2 {
+  color: #93c5fd;
+}
 </style>

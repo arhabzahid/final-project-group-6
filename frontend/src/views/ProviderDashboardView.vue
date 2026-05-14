@@ -12,6 +12,11 @@ const appointmentTime = ref('')
 const editingAppointmentId = ref<number | null>(null)
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const welcomeName = user.full_name || user.username || 'User'
+const darkMode = ref(false)
+
+function toggleDarkMode() {
+  darkMode.value = !darkMode.value
+}
 
 const newAppointment = ref({
   patient: 1,
@@ -50,6 +55,21 @@ function isSunday(date: string) {
   const selectedDate = new Date(`${date}T00:00:00Z`)
   return selectedDate.getUTCDay() === 0
 }
+function isPastDate(date: string) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const selectedDate = new Date(`${date}T00:00:00`)
+  selectedDate.setHours(0, 0, 0, 0)
+
+  return selectedDate < today
+}
+function isPastDateTime(date: string, time: string) {
+  const selectedDateTime = new Date(`${date}T${time}:00`)
+  const now = new Date()
+
+  return selectedDateTime < now
+}
 
 async function fetchAppointments() {
   const userId = localStorage.getItem('user_id')
@@ -77,6 +97,14 @@ async function addAppointment() {
   if (isSunday(appointmentDate.value)) {
     alert('Appointments cannot be scheduled on Sunday.')
     return
+  }
+  if (isPastDate(appointmentDate.value)) {
+  alert('Appointments cannot be scheduled in the past.')
+  return
+  }
+  if (isPastDateTime(appointmentDate.value, appointmentTime.value)) {
+  alert('Appointments cannot be scheduled in the past.')
+  return
   }
 
   newAppointment.value.start_time = buildDateTime(
@@ -145,6 +173,14 @@ async function updateAppointment() {
     alert('Appointments cannot be scheduled on Sunday.')
     return
   }
+  if (isPastDate(appointmentDate.value)) {
+  alert('Appointments cannot be scheduled in the past.')
+  return
+  }
+  if (isPastDateTime(appointmentDate.value, appointmentTime.value)) {
+  alert('Appointments cannot be scheduled in the past.')
+  return
+  }
 
   newAppointment.value.start_time = buildDateTime(
     appointmentDate.value,
@@ -200,6 +236,7 @@ function logout() {
   localStorage.removeItem('user')
   localStorage.removeItem('role')
   localStorage.removeItem('user_id')
+  localStorage.removeItem('provider_id')
 
   router.push('/login')
 }
@@ -211,7 +248,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page">
+  <div :class="['page', { dark: darkMode }]">
     <aside class="sidebar">
       <h2>MedCare</h2>
       <p>Provider Dashboard</p>
@@ -231,6 +268,9 @@ onMounted(() => {
         </button>
         <button class="logout" @click="logout">
         Logout
+        </button>
+        <button class="dark-toggle" @click="toggleDarkMode">
+        {{ darkMode ? 'Light Mode' : 'Dark Mode' }}
         </button>
         </div>
       </header>
@@ -490,5 +530,52 @@ select {
   padding: 8px 13px;
   border-radius: 8px;
   cursor: pointer;
+}
+.dark {
+  background: #111827;
+  color: #f9fafb;
+}
+
+.dark .main {
+  background: #111827;
+}
+
+.dark .panel,
+.dark .stat-card {
+  background: #1f2937;
+  color: #f9fafb;
+}
+
+.dark .topbar p,
+.dark .stat-card span {
+  color: #d1d5db;
+}
+
+.dark th {
+  background: #374151;
+  color: #f9fafb;
+}
+
+.dark td {
+  border-bottom: 1px solid #374151;
+}
+
+.dark input,
+.dark select {
+  background: #111827;
+  color: #f9fafb;
+  border-color: #4b5563;
+}
+
+.dark-toggle {
+  background: #111827;
+  color: white;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.dark .stat-card h2 {
+  color: #93c5fd;
 }
 </style>

@@ -6,6 +6,11 @@ const router = useRouter()
 const appointments = ref<any[]>([])
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const welcomeName = user.full_name || user.username || 'User'
+const darkMode = ref(false)
+
+function toggleDarkMode() {
+  darkMode.value = !darkMode.value
+}
 
 async function fetchAppointments() {
   const userId = localStorage.getItem('user_id')
@@ -21,6 +26,7 @@ function logout() {
   localStorage.removeItem('user')
   localStorage.removeItem('role')
   localStorage.removeItem('user_id')
+  localStorage.removeItem('provider_id')
   router.push('/login')
 }
 
@@ -30,7 +36,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page">
+  <div :class="['page', { dark: darkMode }]">
     <aside class="sidebar">
       <h2>MedCare</h2>
       <p>Patient Dashboard</p>
@@ -50,6 +56,9 @@ onMounted(() => {
         </button>
         <button class="logout" @click="logout">
         Logout
+        </button>
+        <button class="dark-toggle" @click="toggleDarkMode">
+        {{ darkMode ? 'Light Mode' : 'Dark Mode' }}
         </button>
         </div>
       </header>
@@ -220,5 +229,52 @@ td {
   padding: 12px 18px;
   border-radius: 10px;
   cursor: pointer;
+}
+.dark {
+  background: #111827;
+  color: #f9fafb;
+}
+
+.dark .main {
+  background: #111827;
+}
+
+.dark .panel,
+.dark .stat-card {
+  background: #1f2937;
+  color: #f9fafb;
+}
+
+.dark .topbar p,
+.dark .stat-card span {
+  color: #d1d5db;
+}
+
+.dark th {
+  background: #374151;
+  color: #f9fafb;
+}
+
+.dark td {
+  border-bottom: 1px solid #374151;
+}
+
+.dark input,
+.dark select {
+  background: #111827;
+  color: #f9fafb;
+  border-color: #4b5563;
+}
+
+.dark-toggle {
+  background: #111827;
+  color: white;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.dark .stat-card h2 {
+  color: #93c5fd;
 }
 </style>
