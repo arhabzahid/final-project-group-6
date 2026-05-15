@@ -314,7 +314,7 @@ onMounted(() => {
             </option>
           </select>
 
-          <select v-model="newAppointment.status">
+          <select v-if="editingAppointmentId" v-model="newAppointment.status">
             <option value="scheduled">Scheduled</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
