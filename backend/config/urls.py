@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path
 
 urlpatterns = []
-from api.views import (health, home, patients, providers, appointments, availability, delete_appointment, 
+from api.views import (delete_availability, health, home, patients, providers, appointments, availability, delete_appointment, 
                        update_appointment, login_view, register_view,patient_appointments, provider_appointments,
                        delete_patient, provider_create_appointment,update_patient,update_provider,
                        delete_provider)
@@ -42,4 +42,5 @@ urlpatterns = [
     path("provider-create-appointment/<int:user_id>/", provider_create_appointment),
     path("patients/update/<int:id>/", update_patient),
     path("providers/update/<int:id>/", update_provider),
+    path('availability/delete/<int:id>/', delete_availability),
 ]

@@ -13,6 +13,11 @@ const editingAppointmentId = ref<number | null>(null)
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const welcomeName = user.full_name || user.username || 'User'
 const darkMode = ref(false)
+const availabilityStart = ref('')
+const availabilityEnd = ref('')
+const availabilities = ref<any[]>([])
+const selectedAvailability = ref<number | null>(null)
+const myAvailabilities = ref<any[]>([])
 
 function toggleDarkMode() {
   darkMode.value = !darkMode.value
@@ -125,7 +130,7 @@ async function addAppointment() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        availability: 1,
+        availability: selectedAvailability.value,
         patient: Number(newAppointment.value.patient),
         start_time: newAppointment.value.start_time,
         end_time: newAppointment.value.end_time,
@@ -241,9 +246,90 @@ function logout() {
   router.push('/login')
 }
 
+async function createAvailability() 
+{
+  const providerId = localStorage.getItem('provider_id')
+  if (!availabilityStart.value || !availabilityEnd.value) 
+  {
+    alert('Please select availability times.')
+    return
+  }
+  const response = await fetch
+  (
+    'http://127.0.0.1:8000/availability/',
+    {
+      method: 'POST',
+      headers: 
+      {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(
+      {
+        provider: Number(providerId),
+        start_time: availabilityStart.value,
+        end_time: availabilityEnd.value,
+        status: 'available'
+      })
+    }
+  )
+  const data = await response.json()
+  if (!response.ok) 
+  {
+    alert(data.error || 'Failed to create availability')
+    return
+  }
+  alert('Availability created successfully!')
+  fetchMyAvailability()
+  availabilityStart.value = ''
+  availabilityEnd.value = ''
+}
+
+async function fetchAvailabilities() 
+{
+  const response = await fetch(
+    'http://127.0.0.1:8000/availability/'
+  )
+  const data = await response.json()
+  availabilities.value = data.filter
+  (
+    (slot: any) => slot.status === 'available'
+  )
+}
+
+async function fetchMyAvailability()
+{
+  const providerId = localStorage.getItem('provider_id')
+
+  const response = await fetch(
+    'http://127.0.0.1:8000/availability/'
+  )
+
+  const data = await response.json()
+
+  myAvailabilities.value = data.filter(
+    (slot: any) =>
+      slot.provider === Number(providerId)
+  )
+}
+
+async function deleteAvailability(id: number)
+{
+  await fetch(
+    `http://127.0.0.1:8000/availability/delete/${id}/`,
+    {
+      method: 'DELETE'
+    }
+  )
+
+  fetchMyAvailability()
+  fetchAvailabilities()
+}
+
 onMounted(() => {
   fetchAppointments()
   fetchPatients()
+  fetchAvailabilities()
+  fetchMyAvailability()
 })
 </script>
 
@@ -283,6 +369,68 @@ onMounted(() => {
       </section>
 
       <section class="panel">
+        <h2>Create Availability</h2>
+        <div class="form-grid">
+          <input
+            type="datetime-local"
+            v-model="availabilityStart"
+          />
+          <input
+            type="datetime-local"
+            v-model="availabilityEnd"
+          />
+        </div>
+        <button
+          class="primary"
+          @click="createAvailability"
+        >
+          Add Availability
+        </button>
+      </section>
+
+      <section class="panel">
+        <h2>My Availability</h2>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Start</th>
+              <th>End</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr
+              v-for="slot in myAvailabilities"
+              :key="slot.availability_id"
+            >
+              <td>
+                {{
+                  new Date(slot.start_time).toLocaleString()
+                }}
+              </td>
+
+              <td>
+                {{
+                  new Date(slot.end_time).toLocaleString()
+                }}
+              </td>
+
+              <td>
+                <button
+                  class="logout"
+                  @click="deleteAvailability(slot.availability_id)"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
         <h2>{{ editingAppointmentId ? 'Update Appointment' : 'Create Appointment' }}</h2>
 
         <div class="form-grid">
@@ -293,6 +441,21 @@ onMounted(() => {
               :value="patient.id"
             >
               Patient {{  patient.id }} - {{ patient.first_name }} {{ patient.last_name }}
+            </option>
+          </select>
+
+          <select v-model="selectedAvailability">
+            <option :value="null">
+              Select Availability
+            </option>
+
+            <option
+              v-for="slot in availabilities"
+              :key="slot.availability_id"
+              :value="slot.availability_id"
+            >
+              Provider {{ slot.provider }} |
+              {{ slot.start_time }}
             </option>
           </select>
 

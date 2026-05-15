@@ -13,6 +13,8 @@ const editingAppointmentId = ref<number | null>(null)
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const welcomeName = user.full_name || user.username || 'User'
 const darkMode = ref(false)
+const providerAvailabilities = ref<any[]>([])
+const selectedAvailability = ref<number | null>(null)
 
 function toggleDarkMode() {
   darkMode.value = !darkMode.value
@@ -74,7 +76,7 @@ async function addAppointment() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      availability: Number(newAppointment.value.availability_id),
+      availability: Number(selectedAvailability.value),
       patient: Number(newAppointment.value.patient),
       provider: Number(newAppointment.value.provider),
       start_time: newAppointment.value.start_time,
@@ -344,6 +346,84 @@ async function selectSlot(slot: any) {
   newAppointment.value.end_time = slot.end_time
 }
 
+function handleAvailabilitySelection() {
+
+  const slot = providerAvailabilities.value.find(
+    (s: any) =>
+      s.availability_id === selectedAvailability.value
+  )
+
+  if (!slot) return
+
+  newAppointment.value.availability_id = slot.availability_id
+
+  appointmentDate.value =
+    slot.start_time.split('T')[0]
+
+  appointmentTime.value =
+    slot.start_time.split('T')[1].substring(0, 5)
+
+  newAppointment.value.start_time = slot.start_time
+  newAppointment.value.end_time = slot.end_time
+}
+
+
+async function fetchProviderAvailability(providerId: number) 
+{
+  const response = await fetch
+  (
+    'http://127.0.0.1:8000/availability/'
+  )
+  const data = await response.json()
+
+  const appointmentsResponse = await fetch(
+  'http://127.0.0.1:8000/appointments/'
+)
+
+const appointments = await appointmentsResponse.json()
+
+const availableSlots: any[] = []
+
+const providerBlocks = data.filter(
+  (slot: any) =>
+    slot.provider === Number(providerId)
+)
+
+for (const block of providerBlocks) 
+{
+
+  let current = new Date(block.start_time)
+  const end = new Date(block.end_time)
+
+  while (current < end) 
+  {
+
+    const next = new Date(current)
+    next.setMinutes(next.getMinutes() + 30)
+
+    const overlap = appointments.some((appt: any) =>
+      appt.provider === Number(providerId) &&
+      new Date(appt.start_time).getTime() === current.getTime()
+    )
+
+    if (!overlap) 
+    {
+
+      availableSlots.push({
+        availability_id: block.availability_id,
+        start_time: current.toISOString(),
+        end_time: next.toISOString(),
+        provider: block.provider
+      })
+    }
+
+    current = next
+  }
+}
+
+providerAvailabilities.value = availableSlots
+}
+
 onMounted(() => {
   fetchAppointments()
   fetchPatients()
@@ -428,7 +508,10 @@ function logout() {
               Patient {{ patient.id }} - {{ patient.first_name }} {{ patient.last_name}}
             </option>
           </select>
-          <select v-model="newAppointment.provider">
+          <select 
+            v-model="newAppointment.provider"
+            @change="fetchProviderAvailability(newAppointment.provider)"
+          >
             <option
               v-for="provider in providers"
               :key="provider.id"
@@ -437,6 +520,26 @@ function logout() {
               Provider {{ provider.id }} - {{ provider.first_name }} {{ provider.last_name  }}
             </option>
           </select>
+
+          <select 
+            v-model="selectedAvailability"
+            @change="handleAvailabilitySelection"
+          >
+
+            <option :value="null">
+              Select Availability
+            </option>
+
+            <option
+              v-for="slot in providerAvailabilities"
+              :key="slot.availability_id"
+              :value="slot.availability_id"
+            >
+              {{ slot.start_time }} → {{ slot.end_time }}
+            </option>
+
+          </select>
+
           <input
           v-model="appointmentDate"
           type="date"

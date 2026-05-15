@@ -20,9 +20,10 @@ def login_view(request):
 
         if Patient.objects.filter(user=user).exists():
             role = "patient"
-
-        elif Provider.objects.filter(user=user).exists():
+        provider_id = None
+        if Provider.objects.filter(user=user).exists():
             role = "provider"
+            provider_id = Provider.objects.get(user=user).id
 
         return Response({
             "success": True,
@@ -31,7 +32,8 @@ def login_view(request):
             "first_name": user.first_name,
             "last_name": user.last_name,
             "full_name": user.get_full_name(),
-            "role": role
+            "role": role,
+            "provider_id": provider_id
         })
 
     return Response({
@@ -117,7 +119,22 @@ def appointments(request):
                     {"error": "This patient already has an appointment during this time."},
                     status=400
                 )
+            
+            availability_exists = Availability.objects.filter(
+            provider=provider,
+            start_time__lte=start_time,
+            end_time__gte=end_time,
+            status="available"
+            ).exists()
 
+            if not availability_exists:
+                return Response(
+                {"error": "Provider is not available during this time."},
+                status=400
+    )
+            availability = Availability.objects.get(
+            availability_id=request.data.get("availability")
+            )
             serializer.save()
             return Response(serializer.data)
 
@@ -127,6 +144,7 @@ def appointments(request):
 def delete_appointment(request, id):
     try:
         appt = Appointment.objects.get(appointment_id=id)
+        availability = appt.availability
         appt.delete()
         return Response({"message": "Deleted"})
     except Appointment.DoesNotExist:
@@ -141,6 +159,30 @@ def availability(request):
 
     serializer = AvailabilitySerializer(data=request.data)
     if serializer.is_valid():
+        provider = serializer.validated_data["provider"]
+        start_time = serializer.validated_data["start_time"]
+        end_time = serializer.validated_data["end_time"]
+
+        if end_time <= start_time:
+            return Response(
+                {
+                    "error":
+                    "End time must be after start time."
+                },
+                status=400
+    )
+
+        overlap = Availability.objects.filter(
+        provider=provider,
+        start_time__lt=end_time,
+        end_time__gt=start_time
+        ).exists()
+
+        if overlap:
+            return Response(
+            {"error": "Availability overlaps existing availability."},
+            status=400
+        )
         serializer.save()
         return Response(serializer.data)
     return Response(serializer.errors)
@@ -278,6 +320,18 @@ def provider_create_appointment(request, user_id):
         if patient_conflict:
             return Response({"error": "This patient already has an appointment during this time."}, status=400)
 
+        availability_exists = Availability.objects.filter(
+        provider=provider,
+        start_time__lte=start_time,
+        end_time__gte=end_time,
+        status="available"
+        ).exists()
+
+        if not availability_exists:
+            return Response(
+            {"error": "Provider is not available during this time."},
+            status=400
+    )
         serializer.save()
         return Response(serializer.data)
 
@@ -322,3 +376,24 @@ def update_provider(request, id):
 
     serializer = ProviderSerializer(provider)
     return Response(serializer.data)
+
+@api_view(['DELETE'])
+def delete_availability(request, id):
+
+    try:
+        slot = Availability.objects.get(
+            availability_id=id
+        )
+
+        slot.delete()
+
+        return Response({
+            "message": "Availability deleted"
+        })
+
+    except Availability.DoesNotExist:
+
+        return Response(
+            {"error": "Availability not found"},
+            status=404
+        )
