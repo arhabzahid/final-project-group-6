@@ -60,7 +60,10 @@ class Availability(models.Model):
 class Appointment(models.Model):
     appointment_id = models.AutoField(primary_key=True)
     #linking appt to availability, pt, and provider
-    availability = models.ForeignKey(Availability, on_delete = models.CASCADE)
+    availability = models.ForeignKey(Availability,
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True)
     patient = models.ForeignKey(Patient, on_delete = models.CASCADE)
     provider = models.ForeignKey(Provider, on_delete = models.CASCADE)
     start_time = models.DateTimeField()

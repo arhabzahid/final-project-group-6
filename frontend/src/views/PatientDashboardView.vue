@@ -6,23 +6,51 @@ const router = useRouter()
 const appointments = ref<any[]>([])
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const welcomeName = user.full_name || user.username || 'User'
-const darkMode = ref(false)
+const darkMode = ref(localStorage.getItem('darkMode') === 'true')
+const showProfile = ref(false)
 const providerAvailabilities = ref<any[]>([])
-const selectedAvailability = ref<number | null>(null)
+const selectedAvailability = ref<string | null>(null)
 const selectedProvider = ref<number | null>(null)
+const providers = ref<any[]>([])
+const profile = ref({
+  first_name: '',
+  last_name: '',
+  email: '',
+  username: '',
+  password: '',
+  phone: ''
+})
 
 function toggleDarkMode() {
   darkMode.value = !darkMode.value
+  localStorage.setItem(
+    'darkMode',
+    darkMode.value.toString()
+  )
 }
 
 async function fetchAppointments() {
   const userId = localStorage.getItem('user_id')
+  const patientId = localStorage.getItem('patient_id')
 
   const response = await fetch(
     `http://127.0.0.1:8000/patient-appointments/${userId}/`
   )
 
   appointments.value = await response.json()
+}
+async function cancelBooking(id: number) {
+  await fetch(`http://127.0.0.1:8000/appointments/delete/${id}/`, {
+    method: 'DELETE'
+  })
+
+  await fetchAppointments()
+
+  if (selectedProvider.value) {
+    await fetchProviderAvailability(selectedProvider.value)
+  }
+
+  alert('Booking cancelled successfully.')
 }
 
 function logout() {
@@ -50,7 +78,8 @@ const availableSlots: any[] = []
 
 const providerBlocks = data.filter(
   (slot: any) =>
-    slot.provider === Number(providerId)
+    slot.provider === Number(providerId)&&
+    slot.status === 'available'
 )
 
 for (const block of providerBlocks) 
@@ -74,6 +103,7 @@ for (const block of providerBlocks)
     {
 
       availableSlots.push({
+        slot_id: `${block.availability_id}-${current.toISOString()}`,
         availability_id: block.availability_id,
         start_time: current.toISOString(),
         end_time: next.toISOString(),
@@ -107,7 +137,7 @@ async function bookAppointment()
   }
   const selectedSlot = providerAvailabilities.value.find(
     (slot: any) =>
-      slot.availability_id === selectedAvailability.value
+      slot.slot_id === selectedAvailability.value
   )
   if (!selectedSlot) 
   {
@@ -124,7 +154,7 @@ async function bookAppointment()
       },
       body: JSON.stringify({
         availability: selectedSlot.availability_id,
-        patient: Number(userId),
+        patient: Number(localStorage.getItem('patient_id')),
         provider: selectedSlot.provider,
         start_time: selectedSlot.start_time,
         end_time: selectedSlot.end_time,
@@ -135,13 +165,45 @@ async function bookAppointment()
   const data = await response.json()
   if (!response.ok) 
   {
-    alert(data.error || 'Failed to create appointment')
+    alert(data.error || JSON.stringify(data))
     return
   }
   alert('Appointment booked successfully!')
   fetchAppointments()
   fetchProviderAvailability(selectedProvider.value!)
   selectedAvailability.value = null
+}
+
+async function updateProfile() {
+  const userId = localStorage.getItem('user_id')
+
+  const response = await fetch(
+    `http://127.0.0.1:8000/update-patient-profile/${userId}/`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        first_name: profile.value.first_name,
+        last_name: profile.value.last_name,
+        email: profile.value.email,
+        username: profile.value.username,
+        password: profile.value.password,
+        patient_phone_number: profile.value.phone
+      })
+    }
+  )
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    alert(data.error || 'Failed to update profile')
+    return
+  }
+
+  alert('Profile updated successfully!')
+  showProfile.value = false
 }
 
 onMounted(() => {
@@ -166,6 +228,12 @@ onMounted(() => {
         </div>
 
         <div class="topbar-actions">
+        <button
+        class="refresh"
+        @click="showProfile = !showProfile"
+        >
+        Profile
+        </button>
         <button class="refresh" @click="fetchAppointments">
         Refresh Data
         </button>
@@ -177,7 +245,52 @@ onMounted(() => {
         </button>
         </div>
       </header>
+<section
+  v-if="showProfile"
+  class="panel"
+>
+  <h2>Update My Profile</h2>
 
+  <div class="form-grid">
+    <input
+      v-model="profile.first_name"
+      placeholder="First Name"
+    />
+
+    <input
+      v-model="profile.last_name"
+      placeholder="Last Name"
+    />
+
+    <input
+      v-model="profile.email"
+      placeholder="Email"
+    />
+
+    <input
+      v-model="profile.username"
+      placeholder="Username"
+    />
+
+    <input
+      v-model="profile.password"
+      type="password"
+      placeholder="New Password (optional)"
+    />
+
+    <input
+      v-model="profile.phone"
+      placeholder="Phone Number"
+    />
+  </div>
+
+  <button
+    class="refresh"
+    @click="updateProfile"
+  >
+    Update Profile
+  </button>
+</section>
       <section class="stats">
         <div class="stat-card">
           <span>My Appointments</span>
@@ -215,10 +328,13 @@ onMounted(() => {
 
             <option
               v-for="slot in providerAvailabilities"
-              :key="slot.availability_id"
-              :value="slot.availability_id"
+              :key="slot.slot_id"
+              :value="slot.slot_id"
             >
-              {{ slot.start_time }} → {{ slot.end_time }}
+              {{ new Date(slot.start_time).toLocaleDateString() }}
+              {{ new Date(slot.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+              -
+              {{ new Date(slot.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
             </option>
 
           </select>
@@ -245,6 +361,7 @@ onMounted(() => {
               <th>Status</th>
               <th>Start Time</th>
               <th>End Time</th>
+              <th>Action</th>
             </tr>
           </thead>
 
@@ -258,10 +375,41 @@ onMounted(() => {
               {{ appointment.provider }} - {{ appointment.provider_name }}
               </td>
               <td>
-              <span class="status">{{ appointment.status }}</span>
+              <span :class="['status', appointment.status]">
+              {{ appointment.status }}
+              </span>
               </td>
-              <td>{{ appointment.start_time }}</td>
-              <td>{{ appointment.end_time }}</td>
+             <td>
+             {{
+              new Date(appointment.start_time).toLocaleString([], {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+                })
+                }}
+                </td>
+                <td>
+                {{
+                  new Date(appointment.end_time).toLocaleString([], {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                    })
+                    }}
+                    </td>
+              <td>
+              <button
+              v-if="appointment.status === 'scheduled'"
+              class="cancel"
+              @click="cancelBooking(appointment.appointment_id)"
+              >
+              Cancel
+              </button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -344,6 +492,7 @@ onMounted(() => {
   background: white;
   border-radius: 16px;
   padding: 22px;
+  margin-bottom: 25px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
 }
 
@@ -440,5 +589,39 @@ td {
 }
 .dark .stat-card h2 {
   color: #93c5fd;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
+}
+input,
+select {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+}
+.status.scheduled {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status.completed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status.cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.cancel {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 8px 13px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 </style>

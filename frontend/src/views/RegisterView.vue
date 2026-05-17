@@ -12,11 +12,39 @@ const lastName = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const role = ref<'patient' | 'provider'>('patient')
+const providerId = ref('')
 const error = ref('')
 const loading = ref(false)
 
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function isStrongPassword(password: string) {
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  )
+}
+
 async function handleRegister() {
   error.value = ''
+  if (!isValidEmail(email.value)) {
+  error.value = 'Please provide a valid email.'
+  return
+  }
+  if (!isStrongPassword(password.value)) {
+  error.value =
+    'Password must contain uppercase, lowercase, number, special character, and be at least 8 characters.'
+  return
+  }
+  if (role.value === 'provider' && !providerId.value) {
+  error.value = 'Please enter a medical license number.'
+  return
+  }
 
   if (password.value !== confirmPassword.value) {
     error.value = 'Passwords do not match.'
@@ -33,6 +61,10 @@ async function handleRegister() {
       first_name: firstName.value,
       last_name: lastName.value,
       role: role.value,
+      provider_id:
+      role.value === 'provider'
+      ? Number(providerId.value)
+      : null,
     })
 
     const { token, role: userRole } = res.data
@@ -146,26 +178,42 @@ async function handleRegister() {
               />
             </div>
           </div>
-
           <div class="field">
-            <label>I am a…</label>
-            <div class="role-toggle">
-              <button
-                type="button"
-                :class="['role-btn', { active: role === 'patient' }]"
-                @click="role = 'patient'"
-              >
-                Patient
-              </button>
-              <button
-                type="button"
-                :class="['role-btn', { active: role === 'provider' }]"
-                @click="role = 'provider'"
-              >
-                Provider
-              </button>
-            </div>
+          <label>I am a…</label>
+          <div class="role-toggle">
+          <button
+          type="button"
+          :class="['role-btn', { active: role === 'patient' }]"
+          @click="role = 'patient'"
+          >
+          Patient
+          </button>
+          <button
+          type="button"
+          :class="['role-btn', { active: role === 'provider' }]"
+          @click="role = 'provider'"
+          >
+          Provider
+          </button>
           </div>
+          </div>
+
+<div
+  v-if="role === 'provider'"
+  class="field"
+>
+  <label for="providerId">
+    Medical License Number
+  </label>
+
+  <input
+    id="providerId"
+    v-model="providerId"
+    type="number"
+    placeholder="Enter medical license number"
+  />
+</div>
+              
 
           <div v-if="error" class="error-msg">{{ error }}</div>
 

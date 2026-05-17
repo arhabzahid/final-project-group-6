@@ -25,6 +25,7 @@ async function handleLogin() {
       localStorage.setItem('role', res.data.role)
       localStorage.setItem('user_id', res.data.user_id)
       localStorage.setItem('provider_id', res.data.provider_id)
+      localStorage.setItem('patient_id', res.data.patient_id)
 
   if (res.data.role === 'admin') {
     router.push('/dashboard/admin')

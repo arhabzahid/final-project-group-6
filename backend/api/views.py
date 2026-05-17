@@ -4,23 +4,45 @@ from django.contrib.auth import authenticate
 from .models import Patient, Provider, Appointment, Availability 
 from .serializers import PatientSerializer, ProviderSerializer, AppointmentSerializer, AvailabilitySerializer
 from django.contrib.auth.models import User
+from django.core.mail import send_mail
+from django.conf import settings
+
+def send_appointment_email(appointment, subject, message):
+    patient_email = appointment.patient.user.email
+    provider_email = appointment.provider.user.email
+
+    recipient_list = []
+
+    if patient_email:
+        recipient_list.append(patient_email)
+
+    if provider_email:
+        recipient_list.append(provider_email)
+
+    if recipient_list:
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            recipient_list,
+            fail_silently=False
+        )
 
 @api_view(["POST"])
 def login_view(request):
     username = request.data.get("username", "").strip()
     password = request.data.get("password", "").strip()
-
-    user = authenticate(
-        username=username,
-        password=password
-    )
+    user = authenticate(username=username, password=password)
     if user is not None:
 
         role = "admin"
+        patient_id = None
+        provider_id = None
 
         if Patient.objects.filter(user=user).exists():
             role = "patient"
-        provider_id = None
+            patient_id = Patient.objects.get(user=user).id
+
         if Provider.objects.filter(user=user).exists():
             role = "provider"
             provider_id = Provider.objects.get(user=user).id
@@ -33,7 +55,8 @@ def login_view(request):
             "last_name": user.last_name,
             "full_name": user.get_full_name(),
             "role": role,
-            "provider_id": provider_id
+            "provider_id": provider_id,
+            "patient_id": patient_id
         })
 
     return Response({
@@ -95,6 +118,7 @@ def appointments(request):
             patient = serializer.validated_data["patient"]
             start_time = serializer.validated_data["start_time"]
             end_time = serializer.validated_data["end_time"]
+            availability = serializer.validated_data.get("availability")
 
             provider_conflict = Appointment.objects.filter(
                 provider=provider,
@@ -120,36 +144,57 @@ def appointments(request):
                     status=400
                 )
             
-            availability_exists = Availability.objects.filter(
-            provider=provider,
-            start_time__lte=start_time,
-            end_time__gte=end_time,
-            status="available"
-            ).exists()
+            if availability:
+                availability_exists = Availability.objects.filter(
+                    provider=provider,
+                    start_time__lte=start_time,
+                    end_time__gte=end_time,
+                    status="available"
+                    ).exists()
+                if not availability_exists:
+                    return Response(
+                        {"error": "Provider is not available during this time."},
+                        status=400
+                        )
+            
+            appt = serializer.save()
+            send_appointment_email(
+                appt,
+    "Appointment Created",
+    f"""
+Hello,
 
-            if not availability_exists:
-                return Response(
-                {"error": "Provider is not available during this time."},
-                status=400
-    )
-            availability = Availability.objects.get(
-            availability_id=request.data.get("availability")
-            )
-            serializer.save()
+Your appointment has been successfully scheduled.
+
+-----------------------------------
+Appointment Details
+-----------------------------------
+
+Patient:
+{appt.patient.user.get_full_name()}
+
+Provider:
+{appt.provider.user.get_full_name()}
+
+Start Time:
+{appt.start_time}
+
+End Time:
+{appt.end_time}
+
+Status:
+{appt.status.title()}
+
+-----------------------------------
+
+Thank you,
+MedCare Hospital System
+"""
+)
             return Response(serializer.data)
 
         return Response(serializer.errors, status=400)
     
-@api_view(['DELETE'])
-def delete_appointment(request, id):
-    try:
-        appt = Appointment.objects.get(appointment_id=id)
-        availability = appt.availability
-        appt.delete()
-        return Response({"message": "Deleted"})
-    except Appointment.DoesNotExist:
-        return Response({"error": "Appointment not found"})
-
 @api_view(['GET', 'POST'])
 def availability(request):
     if request.method == 'GET':
@@ -194,9 +239,115 @@ def update_appointment(request, id):
     except Appointment.DoesNotExist:
         return Response({"error": "Appointment not found"})
 
+    old_status = appt.status
+
     serializer = AppointmentSerializer(appt, data=request.data)
+
     if serializer.is_valid():
-        serializer.save()
+        updated_appt = serializer.save()
+
+        if updated_appt.status == "completed":
+            subject = "Appointment Completed"
+            message = f"""
+Hello,
+
+Your appointment has been marked as completed.
+
+-----------------------------------
+Appointment Details
+-----------------------------------
+
+Patient:
+{updated_appt.patient.user.get_full_name()}
+
+Provider:
+{updated_appt.provider.user.get_full_name()}
+
+Start Time:
+{updated_appt.start_time}
+
+End Time:
+{updated_appt.end_time}
+
+Status:
+{updated_appt.status.title()}
+
+-----------------------------------
+
+Thank you,
+MedCare Hospital System
+"""
+
+        elif updated_appt.status == "cancelled":
+            subject = "Appointment Cancelled"
+            message = f"""
+Hello,
+
+Your appointment has been cancelled.
+
+-----------------------------------
+Appointment Details
+-----------------------------------
+
+Patient:
+{updated_appt.patient.user.get_full_name()}
+
+Provider:
+{updated_appt.provider.user.get_full_name()}
+
+Start Time:
+{updated_appt.start_time}
+
+End Time:
+{updated_appt.end_time}
+
+Status:
+{updated_appt.status.title()}
+
+-----------------------------------
+
+Thank you,
+MedCare Hospital System
+"""
+
+        else:
+            subject = "Appointment Updated"
+            message = f"""
+Hello,
+
+Your appointment has been successfully updated.
+
+-----------------------------------
+Appointment Details
+-----------------------------------
+
+Patient:
+{updated_appt.patient.user.get_full_name()}
+
+Provider:
+{updated_appt.provider.user.get_full_name()}
+
+Start Time:
+{updated_appt.start_time}
+
+End Time:
+{updated_appt.end_time}
+
+Status:
+{updated_appt.status.title()}
+
+-----------------------------------
+
+Thank you,
+MedCare Hospital System
+"""
+
+        send_appointment_email(
+            updated_appt,
+            subject,
+            message
+        )
+
         return Response(serializer.data)
 
     return Response(serializer.errors)
@@ -301,6 +452,7 @@ def provider_create_appointment(request, user_id):
         patient = serializer.validated_data["patient"]
         start_time = serializer.validated_data["start_time"]
         end_time = serializer.validated_data["end_time"]
+        availability = serializer.validated_data.get("availability")
 
         provider_conflict = Appointment.objects.filter(
             provider=provider,
@@ -320,19 +472,55 @@ def provider_create_appointment(request, user_id):
         if patient_conflict:
             return Response({"error": "This patient already has an appointment during this time."}, status=400)
 
-        availability_exists = Availability.objects.filter(
-        provider=provider,
-        start_time__lte=start_time,
-        end_time__gte=end_time,
-        status="available"
-        ).exists()
+        if availability:
+            availability_exists = Availability.objects.filter(
+                provider=provider,
+                start_time__lte=start_time,
+                end_time__gte=end_time,
+                status="available"
+                ).exists()
+            if not availability_exists:
+                return Response(
+                    {"error": "Provider is not available during this time."},
+                    status=400
+                    )
+                
+        appt = serializer.save()
+        send_appointment_email(
+                    appt,
+                    "Appointment Created",
+                    f"""
+Hello,
 
-        if not availability_exists:
-            return Response(
-            {"error": "Provider is not available during this time."},
-            status=400
-    )
-        serializer.save()
+Your appointment has been successfully scheduled.
+
+-----------------------------------
+Appointment Details
+-----------------------------------
+
+Patient:
+{appt.patient.user.get_full_name()}
+
+Provider:
+{appt.provider.user.get_full_name()}
+
+Start Time:
+{appt.start_time}
+
+End Time:
+{appt.end_time}
+
+Status:
+{appt.status.title()}
+
+-----------------------------------
+
+Thank you,
+MedCare Hospital System
+"""
+            )
+        
+        
         return Response(serializer.data)
 
     return Response(serializer.errors, status=400)
@@ -377,9 +565,124 @@ def update_provider(request, id):
     serializer = ProviderSerializer(provider)
     return Response(serializer.data)
 
+    
+@api_view(['DELETE'])
+def delete_appointment(request, id):
+    try:
+        appt = Appointment.objects.get(appointment_id=id)
+
+        availability = appt.availability
+
+        if availability:
+            availability.status = "available"
+            availability.save()
+
+        send_appointment_email(
+    appt,
+    "Appointment Cancelled",
+    f"""
+Hello,
+
+Your appointment has been cancelled.
+
+-----------------------------------
+Appointment Details
+-----------------------------------
+
+Patient:
+{appt.patient.user.get_full_name()}
+
+Provider:
+{appt.provider.user.get_full_name()}
+
+Start Time:
+{appt.start_time}
+
+End Time:
+{appt.end_time}
+
+Status:
+Cancelled
+
+-----------------------------------
+
+Thank you,
+MedCare Hospital System
+"""
+)
+        appt.delete()
+        return Response({"message": "Deleted"})
+
+    except Appointment.DoesNotExist:
+        return Response(
+            {"error": "Appointment not found"},
+            status=404
+        )
+@api_view(['PUT'])
+def update_patient_profile(request, user_id):
+    try:
+        patient = Patient.objects.get(user_id=user_id)
+        user = patient.user
+    except Patient.DoesNotExist:
+        return Response({"error": "Patient not found"}, status=404)
+
+    user.first_name = request.data.get("first_name", user.first_name)
+    user.last_name = request.data.get("last_name", user.last_name)
+    user.email = request.data.get("email", user.email)
+    user.username = request.data.get("username", user.username)
+
+    new_password = request.data.get("password")
+
+    if new_password:
+        user.set_password(new_password)
+
+    user.save()
+
+    patient.patient_phone_number = request.data.get(
+        "patient_phone_number",
+        patient.patient_phone_number
+    )
+
+    patient.save()
+
+    return Response({
+        "message": "Patient profile updated successfully"
+    })
+
+
+@api_view(['PUT'])
+def update_provider_profile(request, user_id):
+    try:
+        provider = Provider.objects.get(user_id=user_id)
+        user = provider.user
+    except Provider.DoesNotExist:
+        return Response({"error": "Provider not found"}, status=404)
+
+    user.first_name = request.data.get("first_name", user.first_name)
+    user.last_name = request.data.get("last_name", user.last_name)
+    user.email = request.data.get("email", user.email)
+    user.username = request.data.get("username", user.username)
+
+    new_password = request.data.get("password")
+
+    if new_password:
+        user.set_password(new_password)
+
+    user.save()
+
+    provider.provider_phone_number = request.data.get(
+        "provider_phone_number",
+        provider.provider_phone_number
+    )
+
+    provider.save()
+
+    return Response({
+        "message": "Provider profile updated successfully"
+    })
+    
 @api_view(['DELETE'])
 def delete_availability(request, id):
-
     try:
         slot = Availability.objects.get(
             availability_id=id

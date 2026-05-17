@@ -21,7 +21,8 @@ urlpatterns = []
 from api.views import (delete_availability, health, home, patients, providers, appointments, availability, delete_appointment, 
                        update_appointment, login_view, register_view,patient_appointments, provider_appointments,
                        delete_patient, provider_create_appointment,update_patient,update_provider,
-                       delete_provider)
+                       delete_provider,update_patient_profile,update_provider_profile,)
+
 
 urlpatterns = [
     path("", home),
@@ -43,4 +44,6 @@ urlpatterns = [
     path("patients/update/<int:id>/", update_patient),
     path("providers/update/<int:id>/", update_provider),
     path('availability/delete/<int:id>/', delete_availability),
+    path("update-patient-profile/<int:user_id>/",update_patient_profile),
+    path("update-provider-profile/<int:user_id>/",update_provider_profile),
 ]

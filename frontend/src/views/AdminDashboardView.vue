@@ -12,18 +12,22 @@ const router = useRouter()
 const editingAppointmentId = ref<number | null>(null)
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const welcomeName = user.full_name || user.username || 'User'
-const darkMode = ref(false)
+const darkMode = ref(localStorage.getItem('darkMode') === 'true')
 const providerAvailabilities = ref<any[]>([])
-const selectedAvailability = ref<number | null>(null)
+const selectedAvailability = ref<string | null>(null)
 
 function toggleDarkMode() {
   darkMode.value = !darkMode.value
+  localStorage.setItem(
+    'darkMode',
+    darkMode.value.toString()
+  )
 }
 
 const newAppointment = ref({
-  availability_id: 1,
-  patient: 1,
-  provider: 1,
+  availability_id: null,
+  patient: '',
+  provider: '',
   start_time: '',
   end_time: '',
   status: 'scheduled'
@@ -68,6 +72,12 @@ async function addAppointment() {
   alert('Appointments cannot be scheduled in the past.')
   return
   }
+  const selectedSlot = providerAvailabilities.value.find(
+  (slot: any) => slot.slot_id === selectedAvailability.value
+  )
+  const availabilityId = selectedSlot
+  ? selectedSlot.availability_id
+  : null
   
   newAppointment.value.start_time = buildDateTime(appointmentDate.value, appointmentTime.value)
   newAppointment.value.end_time = buildEndTime(appointmentDate.value, appointmentTime.value)
@@ -76,13 +86,13 @@ async function addAppointment() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      availability: Number(selectedAvailability.value),
-      patient: Number(newAppointment.value.patient),
-      provider: Number(newAppointment.value.provider),
-      start_time: newAppointment.value.start_time,
-      end_time: newAppointment.value.end_time,
-      status: newAppointment.value.status
-    })
+  availability: availabilityId,
+  patient: Number(newAppointment.value.patient),
+  provider: Number(newAppointment.value.provider),
+  start_time: newAppointment.value.start_time,
+  end_time: newAppointment.value.end_time,
+  status: newAppointment.value.status
+  })
   })
 
   const data = await response.json()
@@ -95,7 +105,7 @@ async function addAppointment() {
   await fetchAppointments()
 
   newAppointment.value = {
-    availability_id: 1,
+    availability_id: null,
     patient: selectedPatient,
     provider: selectedProvider,
     start_time: '',
@@ -104,6 +114,7 @@ async function addAppointment() {
   }
   appointmentDate.value = ''
   appointmentTime.value = ''
+  selectedAvailability.value = null
   alert('Appointment created successfully!')
 }
 
@@ -328,9 +339,9 @@ async function updateAppointment() {
   editingAppointmentId.value = null
 
   newAppointment.value = {
-    availability_id: 1,
-    patient: 1,
-    provider: 1,
+    availability_id: null,
+    patient: '',
+    provider: '',
     start_time: '',
     end_time: '',
     status: 'scheduled'
@@ -350,7 +361,7 @@ function handleAvailabilitySelection() {
 
   const slot = providerAvailabilities.value.find(
     (s: any) =>
-      s.availability_id === selectedAvailability.value
+      s.slot_id === selectedAvailability.value
   )
 
   if (!slot) return
@@ -370,6 +381,8 @@ function handleAvailabilitySelection() {
 
 async function fetchProviderAvailability(providerId: number) 
 {
+  selectedAvailability.value = null
+
   const response = await fetch
   (
     'http://127.0.0.1:8000/availability/'
@@ -386,7 +399,8 @@ const availableSlots: any[] = []
 
 const providerBlocks = data.filter(
   (slot: any) =>
-    slot.provider === Number(providerId)
+    slot.provider === Number(providerId)&&
+      slot.status === 'available'
 )
 
 for (const block of providerBlocks) 
@@ -410,6 +424,7 @@ for (const block of providerBlocks)
     {
 
       availableSlots.push({
+        slot_id: `${block.availability_id}-${current.toISOString()}`,
         availability_id: block.availability_id,
         start_time: current.toISOString(),
         end_time: next.toISOString(),
@@ -434,6 +449,8 @@ function logout() {
   localStorage.removeItem('user')
   localStorage.removeItem('user_id')
   localStorage.removeItem('role')
+  localStorage.removeItem('provider_id')
+  localStorage.removeItem('patient_id')
   router.push('/login')
 }
 </script>
@@ -500,6 +517,9 @@ function logout() {
 
         <div class="form-grid">
           <select v-model="newAppointment.patient">
+          <option disabled value="">
+          Select Patient
+          </option>
             <option
               v-for="patient in patients"
               :key="patient.id"
@@ -512,6 +532,9 @@ function logout() {
             v-model="newAppointment.provider"
             @change="fetchProviderAvailability(newAppointment.provider)"
           >
+          <option disabled value="">
+          Select Provider
+          </option>
             <option
               v-for="provider in providers"
               :key="provider.id"
@@ -527,15 +550,28 @@ function logout() {
           >
 
             <option :value="null">
-              Select Availability
+              Optional: Select Availability
             </option>
 
             <option
               v-for="slot in providerAvailabilities"
-              :key="slot.availability_id"
-              :value="slot.availability_id"
+              :key="slot.slot_id"
+              :value="slot.slot_id"
             >
-              {{ slot.start_time }} → {{ slot.end_time }}
+              {{ new Date(slot.start_time).toLocaleString([], {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+                })
+                }}
+                -
+                {{
+                  new Date(slot.end_time).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                    })
+                    }}
             </option>
 
           </select>
@@ -591,10 +627,31 @@ function logout() {
               <td>{{ appointment.patient }} - {{ appointment.patient_name }}</td>
               <td>{{ appointment.provider }} - {{ appointment.provider_name }}</td>
               <td>
-                <span class="status">{{ appointment.status }}</span>
+                <span :class="['status', appointment.status]">
+                {{ appointment.status }}</span>
               </td>
-              <td>{{ appointment.start_time }}</td>
-              <td>{{ appointment.end_time }}</td>
+              <td>
+              {{
+                new Date(appointment.start_time).toLocaleString([], {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                  })
+                  }}
+                  </td>
+                  <td>
+                  {{
+                    new Date(appointment.end_time).toLocaleString([], {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                      })
+                      }}
+                      </td>
               <td>
                 <div class="action-buttons">
                 <button
@@ -971,5 +1028,24 @@ button:hover {
 }
 .dark .stat-card h2 {
   color: #93c5fd;
+}
+.status.scheduled {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status.completed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status.cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
 }
 </style>

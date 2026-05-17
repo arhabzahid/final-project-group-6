@@ -12,19 +12,33 @@ const appointmentTime = ref('')
 const editingAppointmentId = ref<number | null>(null)
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const welcomeName = user.full_name || user.username || 'User'
-const darkMode = ref(false)
+const darkMode = ref(localStorage.getItem('darkMode') === 'true')
+const showProfile = ref(false)
 const availabilityStart = ref('')
 const availabilityEnd = ref('')
 const availabilities = ref<any[]>([])
 const selectedAvailability = ref<number | null>(null)
 const myAvailabilities = ref<any[]>([])
+const fullDayDate = ref('')
+const profile = ref({
+  first_name: '',
+  last_name: '',
+  email: '',
+  username: '',
+  password: '',
+  phone: ''
+})
 
 function toggleDarkMode() {
   darkMode.value = !darkMode.value
+  localStorage.setItem(
+    'darkMode',
+    darkMode.value.toString()
+  )
 }
 
 const newAppointment = ref({
-  patient: 1,
+  patient: '',
   start_time: '',
   end_time: '',
   status: 'scheduled'
@@ -121,7 +135,7 @@ async function addAppointment() {
     appointmentDate.value,
     appointmentTime.value
   )
-
+  
   const response = await fetch(
     `http://127.0.0.1:8000/provider-create-appointment/${userId}/`,
     {
@@ -130,7 +144,7 @@ async function addAppointment() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        availability: selectedAvailability.value,
+        availability: selectedAvailability.value || null,
         patient: Number(newAppointment.value.patient),
         start_time: newAppointment.value.start_time,
         end_time: newAppointment.value.end_time,
@@ -155,6 +169,7 @@ async function addAppointment() {
 }
 function editAppointment(appointment: any) {
   editingAppointmentId.value = appointment.appointment_id
+  selectedAvailability.value = appointment.availability
 
   newAppointment.value = {
     patient: appointment.patient,
@@ -205,7 +220,7 @@ async function updateAppointment() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        availability: 1,
+        availability: selectedAvailability.value || null,
         patient: Number(newAppointment.value.patient),
         provider: Number(localStorage.getItem('provider_id') || 1),
         start_time: newAppointment.value.start_time,
@@ -229,7 +244,7 @@ async function updateAppointment() {
   appointmentTime.value = ''
 
   newAppointment.value = {
-    patient: 1,
+    patient: '',
     start_time: '',
     end_time: '',
     status: 'scheduled'
@@ -242,17 +257,29 @@ function logout() {
   localStorage.removeItem('role')
   localStorage.removeItem('user_id')
   localStorage.removeItem('provider_id')
+  localStorage.removeItem('patient_id')
+  
 
   router.push('/login')
 }
 
 async function createAvailability() 
 {
+  
   const providerId = localStorage.getItem('provider_id')
   if (!availabilityStart.value || !availabilityEnd.value) 
   {
     alert('Please select availability times.')
     return
+  }
+  const startDate = availabilityStart.value.split('T')[0]
+  if (isSunday(startDate)) {
+  alert('Availability cannot be created on Sunday.')
+  return
+  }
+  if (isPastDate(startDate)) {
+  alert('Availability cannot be created in the past.')
+  return
   }
   const response = await fetch
   (
@@ -286,14 +313,65 @@ async function createAvailability()
 
 async function fetchAvailabilities() 
 {
+  const providerId = localStorage.getItem('provider_id')
   const response = await fetch(
     'http://127.0.0.1:8000/availability/'
   )
   const data = await response.json()
   availabilities.value = data.filter
   (
-    (slot: any) => slot.status === 'available'
+    (slot: any) =>
+      slot.status === 'available' &&
+      slot.provider === Number(providerId)
   )
+}
+async function createFullDayAvailability() {
+  const providerId = localStorage.getItem('provider_id')
+  if (!fullDayDate.value) {
+  alert('Please select a date for full-day availability.')
+  return
+}
+
+const selectedDate = fullDayDate.value
+
+
+  if (isSunday(selectedDate)) {
+    alert('Availability cannot be created on Sunday.')
+    return
+  }
+
+  if (isPastDate(selectedDate)) {
+    alert('Availability cannot be created in the past.')
+    return
+  }
+
+  const start = `${selectedDate}T10:00`
+  const end = `${selectedDate}T22:00`
+
+  const response = await fetch('http://127.0.0.1:8000/availability/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      provider: Number(providerId),
+      start_time: start,
+      end_time: end,
+      status: 'available'
+    })
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    alert(data.error || 'Failed to create full-day availability')
+    return
+  }
+
+  alert('Full-day availability created successfully!')
+  fetchMyAvailability()
+  fetchAvailabilities()
+  fullDayDate.value = ''
 }
 
 async function fetchMyAvailability()
@@ -324,6 +402,53 @@ async function deleteAvailability(id: number)
   fetchMyAvailability()
   fetchAvailabilities()
 }
+function handleAvailabilitySelection() {
+  if (!selectedAvailability.value) {
+    appointmentDate.value = ''
+    appointmentTime.value = ''
+    return
+  }
+
+  const slot = availabilities.value.find(
+    (s: any) => s.availability_id === selectedAvailability.value
+  )
+
+  if (!slot) return
+
+  appointmentDate.value = slot.start_time.split('T')[0]
+  appointmentTime.value = slot.start_time.split('T')[1].substring(0, 5)
+}
+
+async function updateProfile() {
+  const userId = localStorage.getItem('user_id')
+
+  const response = await fetch(
+    `http://127.0.0.1:8000/update-provider-profile/${userId}/`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        first_name: profile.value.first_name,
+        last_name: profile.value.last_name,
+        email: profile.value.email,
+        username: profile.value.username,
+        password: profile.value.password,
+        provider_phone_number: profile.value.phone
+      })
+    }
+  )
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    alert(data.error || 'Failed to update profile')
+    return
+  }
+
+  alert('Profile updated successfully!')
+}
 
 onMounted(() => {
   fetchAppointments()
@@ -349,6 +474,12 @@ onMounted(() => {
         </div>
 
         <div class="topbar-actions">
+        <button
+        class="refresh"
+        @click="showProfile = !showProfile"
+        >
+        Profile
+        </button>
         <button class="refresh" @click="fetchAppointments">
         Refresh Data
         </button>
@@ -361,6 +492,52 @@ onMounted(() => {
         </div>
       </header>
 
+<section
+  v-if="showProfile"
+  class="panel"
+>
+  <h2>Update My Profile</h2>
+
+  <div class="form-grid">
+    <input
+      v-model="profile.first_name"
+      placeholder="First Name"
+    />
+
+    <input
+      v-model="profile.last_name"
+      placeholder="Last Name"
+    />
+
+    <input
+      v-model="profile.email"
+      placeholder="Email"
+    />
+
+    <input
+      v-model="profile.username"
+      placeholder="Username"
+    />
+
+    <input
+      v-model="profile.password"
+      type="password"
+      placeholder="New Password (optional)"
+    />
+
+    <input
+      v-model="profile.phone"
+      placeholder="Phone Number"
+    />
+  </div>
+
+  <button
+    class="primary"
+    @click="updateProfile"
+  >
+    Update Profile
+  </button>
+</section>
       <section class="stats">
         <div class="stat-card">
           <span>My Appointments</span>
@@ -379,6 +556,7 @@ onMounted(() => {
             type="datetime-local"
             v-model="availabilityEnd"
           />
+          
         </div>
         <button
           class="primary"
@@ -386,55 +564,31 @@ onMounted(() => {
         >
           Add Availability
         </button>
+        
       </section>
-
       <section class="panel">
-        <h2>My Availability</h2>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Start</th>
-              <th>End</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <tr
-              v-for="slot in myAvailabilities"
-              :key="slot.availability_id"
-            >
-              <td>
-                {{
-                  new Date(slot.start_time).toLocaleString()
-                }}
-              </td>
-
-              <td>
-                {{
-                  new Date(slot.end_time).toLocaleString()
-                }}
-              </td>
-
-              <td>
-                <button
-                  class="logout"
-                  @click="deleteAvailability(slot.availability_id)"
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <h2>Create Full Day Availability</h2>
+      <div class="form-grid">
+      <input
+      v-model="fullDayDate"
+      type="date"
+      />
+      </div>
+      <button
+      class="primary"
+      @click="createFullDayAvailability"
+      >
+      Add Full Day Availability
+      </button>
       </section>
-
       <section class="panel">
         <h2>{{ editingAppointmentId ? 'Update Appointment' : 'Create Appointment' }}</h2>
 
         <div class="form-grid">
           <select v-model="newAppointment.patient">
+          <option disabled value="">
+          Select Patient
+          </option>
             <option
               v-for="patient in patients"
               :key="patient.id"
@@ -444,9 +598,11 @@ onMounted(() => {
             </option>
           </select>
 
-          <select v-model="selectedAvailability">
+          <select v-model="selectedAvailability"
+          @change="handleAvailabilitySelection"
+          >
             <option :value="null">
-              Select Availability
+              Optional: Select Availability
             </option>
 
             <option
@@ -454,8 +610,21 @@ onMounted(() => {
               :key="slot.availability_id"
               :value="slot.availability_id"
             >
-              Provider {{ slot.provider }} |
-              {{ slot.start_time }}
+               {{
+                new Date(slot.start_time).toLocaleString([], {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                  })
+                  }}
+                  -
+                  {{
+                    new Date(slot.end_time).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                      })
+                      }}
             </option>
           </select>
 
@@ -493,6 +662,60 @@ onMounted(() => {
       </section>
 
       <section class="panel">
+        <h2>My Availability</h2>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Start</th>
+              <th>End</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr
+              v-for="slot in myAvailabilities"
+              :key="slot.availability_id"
+            >
+              <td>
+              {{
+                new Date(slot.start_time).toLocaleString([], {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                  })
+                  }}
+                  </td>
+                  <td>
+                  {{
+                    new Date(slot.end_time).toLocaleString([], {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                      })
+                      }}
+                      </td>
+              <td>
+                <button
+                  class="logout"
+                  @click="deleteAvailability(slot.availability_id)"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      
+
+      <section class="panel">
         <h2>Appointment List</h2>
 
         <table>
@@ -518,13 +741,33 @@ onMounted(() => {
               </td>
 
               <td>
-                <span class="status">
-                  {{ appointment.status }}
+                <span :class="['status', appointment.status]">
+                {{ appointment.status }}
                 </span>
               </td>
 
-              <td>{{ appointment.start_time }}</td>
-              <td>{{ appointment.end_time }}</td>
+              <td>
+              {{
+                new Date(appointment.start_time).toLocaleString([], {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                  })
+                  }}
+                  </td>
+                  <td>
+                  {{
+                    new Date(appointment.end_time).toLocaleString([], {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                      })
+                      }}
+                      </td>
               <td>
               <button
               class="update"
@@ -614,6 +857,7 @@ onMounted(() => {
   background: white;
   border-radius: 16px;
   padding: 22px;
+  margin-bottom: 25px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
 }
 
@@ -740,5 +984,28 @@ select {
 }
 .dark .stat-card h2 {
   color: #93c5fd;
+}
+
+.status.scheduled {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status.completed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status.cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+.primary + .primary {
+  margin-top: 10px;
 }
 </style>
