@@ -512,7 +512,9 @@ function logout() {
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel"
+      v-if="currentView === 'appointments'"
+      >
         <h2>{{ editingAppointmentId ? 'Update Appointment' : 'Add Appointment' }}</h2>
 
         <div class="form-grid">
