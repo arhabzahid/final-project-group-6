@@ -2,7 +2,11 @@
 
 ## Application Overview
 
-MedCare is a healthcare appointment management platform that enables patients, providers, and administrators to manage appointments through role-based dashboards. The system streamlines appointment scheduling, provider availability management, and communication through automated email notifications.
+MedCare Scheduling System is a web application that allows patients, providers, and administrators to manage healthcare appointments.
+
+Patients can view provider availability and schedule appointments. Providers can create and manage their availability, while administrators can oversee appointments, patients, and providers through an admin dashboard.
+
+The application was developed using Vue.js, Django REST Framework, and a MySQL cloud database hosted on Aiven.
 
 ---
 
@@ -90,7 +94,7 @@ DB_HOST=database_host
 DB_PORT=3306
 
 EMAIL_HOST_USER=email@gmail.com
-EMAIL_HOST_PASSWORD=app_password
+EMAIL_HOST_PASSWORD=app_pw
 ```
 
 > Note: The `.env` file is not included in this repository and must be created manually.
